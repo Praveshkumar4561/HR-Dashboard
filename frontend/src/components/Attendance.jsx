@@ -5,6 +5,7 @@ import { useParams } from "react-router-dom";
 import axios from "axios";
 
 function Attendance() {
+  const API_URL = import.meta.env.VITE_API_URL;
   const [candidate, setCandidate] = useState([]);
   const [search, setSearch] = useState("");
   const { id } = useParams();
@@ -20,9 +21,7 @@ function Attendance() {
 
   const alldata = async () => {
     try {
-      const response = await axios.get(
-        "http://localhost:2100/api/allcandidatedata"
-      );
+      const response = await axios.get(`${API_URL}/allcandidatedata`);
       setCandidate(response.data);
     } catch (error) {
       console.error("Fetch error:", error);
@@ -31,9 +30,7 @@ function Attendance() {
 
   const searchbar = async () => {
     try {
-      const response = await axios.get(
-        `http://localhost:2100/api/candidatesearch/${search}`
-      );
+      const response = await axios.get(`${API_URL}/candidatesearch/${search}`);
       setCandidate(response.data);
     } catch (error) {
       console.error("Search error:", error);
@@ -42,7 +39,7 @@ function Attendance() {
 
   const deletedata = async (id) => {
     try {
-      await axios.delete(`http://localhost:2100/api/candidatedelete/${id}`);
+      await axios.delete(`${API_URL}/candidatedelete/${id}`);
       alldata();
     } catch (error) {
       console.error("Delete error:", error);
@@ -52,9 +49,7 @@ function Attendance() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        let response = await axios.get(
-          `http://localhost:2100/candidatesome/${id}`
-        );
+        let response = await axios.get(`${API_URL}/candidatesome/${id}`);
         setCandidate(response.data[0]);
       } catch (error) {
         console.error("Error fetching data:", error);
@@ -63,11 +58,26 @@ function Attendance() {
     fetchData();
   }, [id]);
 
-  function handleStatusChange(id, newStatus) {
+  const handleStatusChange = async (id, newStatus) => {
     setStatuses((s) => ({ ...s, [id]: newStatus }));
-  }
+    try {
+      await axios.post(`${API_URL}/update-status`, {
+        id,
+        status: newStatus,
+      });
+      console.log("Status updated successfully");
+    } catch (error) {
+      console.error("Failed to update status:", error);
+    }
+  };
 
   const [positions, setPositions] = useState("");
+
+  let [show, setShow] = useState(false);
+
+  let showdropdown = () => {
+    setShow(!show);
+  };
 
   return (
     <>
@@ -165,7 +175,12 @@ function Attendance() {
                     strokeLinejoin="round"
                   />
                 </svg>
-                <input type="search" placeholder="Search" />
+                <input
+                  type="search"
+                  placeholder="Search"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                />
               </div>
             </div>
           </div>
@@ -183,32 +198,6 @@ function Attendance() {
               <th>Action</th>
             </tr>
           </thead>
-          {/* <tbody>
-            {data.map((row) => (
-              <tr key={row.id}>
-                <td>{row.id}</td>
-                <td>{row.name}</td>
-                <td>{row.position}</td>
-                <td>{row.department}</td>
-                <td>{row.task}</td>
-                <td>
-                  <select defaultValue={row.status} className="select-status">
-                    <option>Present</option>
-                    <option>Absent</option>
-                  </select>
-                </td>
-                <td>
-                  <div className="actions">
-                    <button className="btn-more">⋮</button>
-                    <div className="dropdown">
-                      <button>Edit</button>
-                      <button>Delete</button>
-                    </div>
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody> */}
 
           <tbody>
             {candidate.length > 0 ? (
@@ -246,11 +235,19 @@ function Attendance() {
 
                     <td>
                       <div className="actions">
-                        <button className="btn-more">⋮</button>
-                        <div className="dropdown">
-                          <button>Edit</button>
-                          <button>Delete</button>
-                        </div>
+                        <button className="btn-more" onClick={showdropdown}>
+                          ⋮
+                        </button>
+                        {show && (
+                          <>
+                            <div className="dropdown-employee">
+                              <button>Edit</button>
+                              <button onClick={() => deletedata(data._id)}>
+                                Delete
+                              </button>
+                            </div>
+                          </>
+                        )}
                       </div>
                     </td>
                   </tr>

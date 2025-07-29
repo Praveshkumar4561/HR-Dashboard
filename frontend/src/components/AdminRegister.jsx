@@ -5,10 +5,10 @@ import { faEye } from "@fortawesome/free-solid-svg-icons";
 import { faEyeSlash } from "@fortawesome/free-solid-svg-icons";
 import { Link, useNavigate } from "react-router-dom";
 import DashboardImage from "../assets/Dashboard.png";
-import axios from 'axios'
-
+import axios from "axios";
 
 function AdminRegister() {
+  const API_URL = import.meta.env.VITE_API_URL;
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
@@ -31,14 +31,11 @@ function AdminRegister() {
     }
 
     try {
-      const response = await axios.post(
-        "http://localhost:2100/api/adminregister",
-        {
-          fullname,
-          email,
-          password,
-        }
-      );
+      const response = await axios.post(`${API_URL}/adminregister`, {
+        fullname,
+        email,
+        password,
+      });
 
       if (response.data.success) {
         navigate("/admin/login");
@@ -159,7 +156,9 @@ function AdminRegister() {
                     />
                   </span>
                 </div>
-                {error && <p style={{ color: "red", marginTop: "8px" }}>{error}</p>}
+                {error && (
+                  <p style={{ color: "red", marginTop: "8px" }}>{error}</p>
+                )}
 
                 <button type="submit">Register</button>
 

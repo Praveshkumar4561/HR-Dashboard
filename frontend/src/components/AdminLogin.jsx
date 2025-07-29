@@ -8,6 +8,7 @@ import DashboardImage from "../assets/Dashboard.png";
 import axios from "axios";
 
 function AdminLogin() {
+  const API_URL = import.meta.env.VITE_API_URL;
   const [showPassword, setShowPassword] = useState(false);
 
   let [login, setLogin] = useState({
@@ -28,7 +29,7 @@ function AdminLogin() {
 
     try {
       const response = await axios.post(
-        "http://localhost:2100/api/adminlogin",
+        `${API_URL}/adminlogin`,
         { email, password },
         { withCredentials: true }
       );

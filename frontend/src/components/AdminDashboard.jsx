@@ -4,6 +4,7 @@ import Customer from "../assets/Customer.png";
 import axios from "axios";
 
 function AdminDashboard() {
+  const API_URL = import.meta.env.VITE_API_URL;
   const [showModal, setShowModal] = useState(false);
   const openModal = () => setShowModal(true);
   const closeModal = () => setShowModal(false);
@@ -56,7 +57,7 @@ function AdminDashboard() {
       data.append("experience", experience);
       data.append("resume", resume);
 
-      await axios.post("http://localhost:2100/api/candidatecreate", data, {
+      await axios.post(`${API_URL}/candidatecreate`, data, {
         headers: { "Content-Type": "multipart/form-data" },
       });
 
@@ -86,7 +87,7 @@ function AdminDashboard() {
         alert("Failed to add candidate");
       }
     }
-  };  
+  };
 
   let [candidate, setCandidate] = useState([]);
   let [search, setSearch] = useState("");
@@ -108,9 +109,7 @@ function AdminDashboard() {
 
   const alldata = async () => {
     try {
-      const response = await axios.get(
-        "http://localhost:2100/api/allcandidatedata"
-      );
+      const response = await axios.get(`${API_URL}/allcandidatedata`);
       setCandidate(response.data);
     } catch (error) {
       console.error("Fetch error:", error);
@@ -119,9 +118,7 @@ function AdminDashboard() {
 
   const searchbar = async () => {
     try {
-      const response = await axios.get(
-        `http://localhost:2100/api/candidatesearch/${search}`
-      );
+      const response = await axios.get(`${API_URL}/candidatesearch/${search}`);
       setCandidate(response.data);
     } catch (error) {
       console.error("Search error:", error);
@@ -130,7 +127,7 @@ function AdminDashboard() {
 
   let deletedata = async (id) => {
     try {
-      await axios.delete(`http://localhost:2100/api/candidatedelete/${id}`);
+      await axios.delete(`${API_URL}/candidatedelete/${id}`);
       alldata();
     } catch (error) {
       console.error("Delete error:", error);
@@ -138,15 +135,47 @@ function AdminDashboard() {
   };
 
   const [statuses, setStatuses] = useState({});
+  const [candidates, setCandidates] = useState([]);
 
-  function handleStatusChange(id, newStatus) {
-    setStatuses((s) => ({ ...s, [id]: newStatus }));
-  }
+  const handleDepartmentChange = async (id, newDepartment) => {
+    setStatuses((s) => ({ ...s, [id]: newDepartment }));
+
+    try {
+      await axios.post(`{API_URL}/department-update`, {
+        id,
+        department: newDepartment,
+      });
+      console.log("Department updated successfully");
+    } catch (error) {
+      console.error("Failed to update department:", error);
+    }
+  };
+
+  useEffect(() => {
+    const fetchCandidates = async () => {
+      try {
+        const res = await axios.get(`${API_URL}/candidates`);
+        setCandidates(res.data);
+
+        const initialStatuses = {};
+        res.data.forEach((c) => {
+          if (c.department) {
+            initialStatuses[c._id] = c.department;
+          }
+        });
+        setStatuses(initialStatuses);
+      } catch (error) {
+        console.error("Error fetching candidates:", error);
+      }
+    };
+
+    fetchCandidates();
+  }, []);
 
   let [show, setShow] = useState(false);
 
   let showdropdown = () => {
-    setShow(!show);
+    setShow(true);
   };
 
   return (
@@ -217,11 +246,14 @@ function AdminDashboard() {
             <div className="filters">
               <select
                 className="select-status"
+                defaultValue="New"
                 onChange={(e) =>
                   e.currentTarget.setAttribute("data-status", e.target.value)
                 }
               >
-                <option value="New">New</option>
+                <option value="New" hidden>
+                  New
+                </option>
                 <option value="Scheduled">Scheduled</option>
                 <option value="OnGoing">OnGoing</option>
                 <option value="Selected">Selected</option>
@@ -441,7 +473,7 @@ function AdminDashboard() {
                       <select
                         value={current}
                         onChange={(e) =>
-                          handleStatusChange(data._id, e.target.value)
+                          handleDepartmentChange(data._id, e.target.value)
                         }
                         className={`select-status${
                           hasValue ? " has-value" : ""
@@ -464,12 +496,14 @@ function AdminDashboard() {
                           ⋮
                         </button>
                         {show && (
-                          <div className="dropdown">
-                            <button>Download Resume</button>
-                            <button onClick={() => deletedata(data._id)}>
-                              Delete Candidate
-                            </button>
-                          </div>
+                          <>
+                            <div className="dropdown-employee">
+                              <button onClick={openModal}>Edit</button>
+                              <button onClick={() => deletedata(data._id)}>
+                                Delete
+                              </button>
+                            </div>
+                          </>
                         )}
                       </div>
                     </td>

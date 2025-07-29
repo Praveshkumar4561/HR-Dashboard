@@ -4,86 +4,7 @@ import Customer from "../assets/Customer.png";
 import axios from "axios";
 
 function Employee() {
-  const [form, setForm] = useState({
-    fullname: "",
-    email: "",
-    phone: "",
-    position: "",
-    experience: "",
-    resume: null,
-  });
-  const { fullname, email, phone, position, experience, resume } = form;
-
-  const [fileName, setFileName] = useState("");
-  const [fileSelected, setFileSelected] = useState(false);
-  const fileInputRef = useRef(null);
-
-  const onInputChange = (e) =>
-    setForm({ ...form, [e.target.name]: e.target.value });
-
-  const handleFileChange = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      setForm({ ...form, resume: file });
-      setFileName(file.name);
-      setFileSelected(true);
-    }
-  };
-
-  const handleClick = () => {
-    if (fileSelected) {
-      setForm({ ...form, resume: null });
-      setFileName("");
-      setFileSelected(false);
-      fileInputRef.current.value = null;
-    } else {
-      fileInputRef.current.click();
-    }
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    try {
-      const data = new FormData();
-      data.append("fullname", fullname);
-      data.append("email", email);
-      data.append("phone", phone);
-      data.append("position", position);
-      data.append("experience", experience);
-      data.append("resume", resume);
-
-      await axios.post("http://localhost:2100/api/candidatecreate", data, {
-        headers: { "Content-Type": "multipart/form-data" },
-      });
-
-      setForm({
-        fullname: "",
-        email: "",
-        phone: "",
-        position: "",
-        experience: "",
-        resume: null,
-      });
-      setFileName("");
-      setFileSelected(false);
-      closeModal();
-    } catch (err) {
-      if (
-        err.response &&
-        err.response.status === 400 &&
-        err.response.data.message &&
-        err.response.data.message.toLowerCase().includes("already exists")
-      ) {
-        alert(
-          "That email has already been used. Please enter a different one."
-        );
-      } else {
-        console.error("Error submitting candidate:", err);
-        alert("Failed to add candidate");
-      }
-    }
-  };
-
+  const API_URL = import.meta.env.VITE_API_URL;
   const [showModal, setShowModal] = useState(false);
 
   const openModal = () => setShowModal(true);
@@ -125,9 +46,7 @@ function Employee() {
 
   const alldata = async () => {
     try {
-      const response = await axios.get(
-        "http://localhost:2100/api/allcandidatedata"
-      );
+      const response = await axios.get(`${API_URL}/allcandidatedata`);
       setCandidate(response.data);
     } catch (error) {
       console.error("Fetch error:", error);
@@ -136,29 +55,59 @@ function Employee() {
 
   const searchbar = async () => {
     try {
-      const response = await axios.get(
-        `http://localhost:2100/api/candidatesearch/${search}`
-      );
+      const response = await axios.get(`${API_URL}/candidatesearch/${search}`);
       setCandidate(response.data);
     } catch (error) {
       console.error("Search error:", error);
     }
   };
 
+  const [statuses, setStatuses] = useState({});
+  const [candidates, setCandidates] = useState([]);
+
+  const handleDepartmentChange = async (id, newDepartment) => {
+    setStatuses((s) => ({ ...s, [id]: newDepartment }));
+
+    try {
+      await axios.post(`${API_URL}/department-update`, {
+        id,
+        department: newDepartment,
+      });
+      console.log("Department updated successfully");
+    } catch (error) {
+      console.error("Failed to update department:", error);
+    }
+  };
+
   let deletedata = async (id) => {
     try {
-      await axios.delete(`http://localhost:2100/api/candidatedelete/${id}`);
+      await axios.delete(`${API_URL}/candidatedelete/${id}`);
       alldata();
     } catch (error) {
       console.error("Delete error:", error);
     }
   };
 
-  const [statuses, setStatuses] = useState({});
+  useEffect(() => {
+    const fetchCandidates = async () => {
+      try {
+        const res = await axios.get(`${API_URL}/candidates`);
+        setCandidates(res.data);
 
-  function handleStatusChange(id, newStatus) {
-    setStatuses((s) => ({ ...s, [id]: newStatus }));
-  }
+        const initialStatuses = {};
+        res.data.forEach((c) => {
+          if (c.department) {
+            initialStatuses[c._id] = c.department;
+          }
+        });
+        setStatuses(initialStatuses);
+      } catch (error) {
+        console.error("Error fetching candidates:", error);
+      }
+    };
+
+    fetchCandidates();
+  }, []);
 
   return (
     <>
@@ -251,7 +200,12 @@ function Employee() {
                     strokeLinejoin="round"
                   />
                 </svg>
-                <input type="search" placeholder="Search" />
+                <input
+                  type="search"
+                  placeholder="Search"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                />
               </div>
             </div>
           </div>
@@ -289,7 +243,7 @@ function Employee() {
                       <select
                         value={current}
                         onChange={(e) =>
-                          handleStatusChange(data._id, e.target.value)
+                          handleDepartmentChange(data._id, e.target.value)
                         }
                         className={`select-status${
                           hasValue ? " has-value" : ""
@@ -315,7 +269,9 @@ function Employee() {
                           <>
                             <div className="dropdown-employee">
                               <button onClick={openModal}>Edit</button>
-                              <button>Delete</button>
+                              <button onClick={() => deletedata(data._id)}>
+                                Delete
+                              </button>
                             </div>
                           </>
                         )}

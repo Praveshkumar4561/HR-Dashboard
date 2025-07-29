@@ -10,31 +10,30 @@ import {
 import axios from "axios";
 
 function Leaves() {
-  const [showModal, setShowModal] = useState(false);
+  const API_URL = import.meta.env.VITE_API_URL;
 
+  const [showModal, setShowModal] = useState(false);
   const openModal = () => setShowModal(true);
   const closeModal = () => setShowModal(false);
 
-  const [status, setStatus] = useState("pending");
-
   const handleChange = (e) => {
-    setStatus(e.target.value);
+    const { name, value } = e.target;
+    setFormData((prevData) => ({
+      ...prevData,
+      [name]: value,
+    }));
   };
-
-  const getColor = () => {
-    if (status === "approved") return "green";
-    if (status === "rejected") return "red";
-    return "goldenrod";
-  };
-
-  const [leaveDate, setLeaveDate] = useState("");
 
   const handleDateFocus = () => {
     const today = new Date();
     const formattedDate = `${String(today.getDate()).padStart(2, "0")}/${String(
       today.getMonth() + 1
     ).padStart(2, "0")}/${today.getFullYear()}`;
-    setLeaveDate(formattedDate);
+
+    setFormData((prevData) => ({
+      ...prevData,
+      leavedate: formattedDate,
+    }));
   };
 
   const fileInputRef = useRef(null);
@@ -54,31 +53,23 @@ function Leaves() {
   const handleFileChange = (e) => {
     const file = e.target.files[0];
     if (file) {
-      setFileName(file.name);
       setFileSelected(true);
+      setFileName(file.name);
+      setFormData((prev) => ({
+        ...prev,
+        document: file,
+      }));
     }
   };
 
-  const [currentDate, setCurrentDate] = useState(new Date(2024, 8));
+  const [approvedLeaves, setApprovedLeaves] = useState([]);
+  const [currentDate, setCurrentDate] = useState(new Date());
 
-  const ApprovedLeaves = [
-    {
-      name: "Cody Fisher",
-      title: "Senior Backend Developer",
-      date: new Date(2024, 8, 8),
-      image: "https://i.pravatar.cc/40?img=1",
-    },
-  ];
+  const getDaysInMonth = (date) =>
+    new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
 
-  const getDaysInMonth = (date) => {
-    const year = date.getFullYear();
-    const month = date.getMonth();
-    return new Date(year, month + 1, 0).getDate();
-  };
-
-  const getFirstDayOfMonth = (date) => {
-    return new Date(date.getFullYear(), date.getMonth(), 1).getDay();
-  };
+  const getFirstDayOfMonth = (date) =>
+    new Date(date.getFullYear(), date.getMonth(), 1).getDay();
 
   const prevMonth = () => {
     setCurrentDate((prev) => new Date(prev.getFullYear(), prev.getMonth() - 1));
@@ -88,19 +79,84 @@ function Leaves() {
     setCurrentDate((prev) => new Date(prev.getFullYear(), prev.getMonth() + 1));
   };
 
-  const isLeaveDate = (day) => {
-    return ApprovedLeaves.some(
+  const getLeaveCountForDay = (day) => {
+    return approvedLeaves.filter(
       (leave) =>
         leave.date.getDate() === day &&
         leave.date.getMonth() === currentDate.getMonth() &&
         leave.date.getFullYear() === currentDate.getFullYear()
+    ).length;
+  };
+
+  const [leaves, setLeaves] = useState([]);
+
+  useEffect(() => {
+    const fetchLeavesData = async () => {
+      try {
+        const response = await axios.get(`${API_URL}/leavesdata`);
+
+        const allLeaves = response.data || [];
+        const approved = allLeaves.filter((item) => item.status === "approved");
+
+        const parsed = approved.map((item) => {
+          const [day, month, year] = item.leavedate.split("/");
+          const parsedDate = new Date(`${year}-${month}-${day}`);
+          return {
+            ...item,
+            date: parsedDate,
+          };
+        });
+
+        setLeaves(allLeaves);
+        setApprovedLeaves(parsed);
+        setApprovedCount(parsed.length);
+      } catch (error) {
+        console.error("Error fetching leaves:", error);
+      }
+    };
+
+    fetchLeavesData();
+
+    const intervalId = setInterval(fetchLeavesData, 1000);
+
+    return () => clearInterval(intervalId);
+  }, []);
+
+  const handleChanges = async (e, id) => {
+    const newStatus = e.target.value;
+    const oldLeaves = [...leaves];
+
+    setLeaves((prev) =>
+      prev.map((leave) =>
+        leave._id === id ? { ...leave, status: newStatus } : leave
+      )
     );
+
+    try {
+      await axios.post(`${API_URL}/leave-approve`, {
+        id,
+        status: newStatus,
+      });
+    } catch (err) {
+      console.error("Failed to update status:", err);
+      alert("Failed to update. Please try again.");
+      setLeaves(oldLeaves);
+    }
+  };
+
+  const getColor = (status) => {
+    switch (status) {
+      case "approved":
+        return "green";
+      case "rejected":
+        return "red";
+      default:
+        return "#555";
+    }
   };
 
   const monthName = currentDate.toLocaleString("default", { month: "long" });
   const year = currentDate.getFullYear();
-  const daysInMonth = getDaysInMonth(currentDate);
-  const firstDay = getFirstDayOfMonth(currentDate);
 
   const [allCandidates, setAllCandidates] = useState([]);
   const [filteredCandidates, setFilteredCandidates] = useState([]);
@@ -109,9 +165,7 @@ function Leaves() {
   useEffect(() => {
     const fetchCandidates = async () => {
       try {
-        const response = await axios.get(
-          "http://localhost:2100/api/allcandidatedata"
-        );
+        const response = await axios.get(`${API_URL}/allcandidatedata`);
         setAllCandidates(response.data);
       } catch (error) {
         console.error("Error fetching candidates:", error);
@@ -125,9 +179,12 @@ function Leaves() {
     const value = e.target.value;
     setSearch(value);
 
-    const filtered = allCandidates.filter((item) =>
-      item.fullname.toLowerCase().includes(value.toLowerCase())
-    );
+    const filtered = allCandidates
+      .filter((item) => item.status === "Present")
+      .filter((item) =>
+        item.fullname.toLowerCase().includes(value.toLowerCase())
+      );
+
     setFilteredCandidates(filtered);
   };
 
@@ -137,7 +194,62 @@ function Leaves() {
     setFilteredCandidates([]);
 
     if (selected) {
-      setDesignation(selected.designation || "");
+      setFormData((prevData) => ({
+        ...prevData,
+        employeename: selected.fullname,
+        designation: selected.designation || "",
+      }));
+    }
+  };
+
+  const [formData, setFormData] = useState({
+    employeename: "",
+    designation: "",
+    leavedate: "",
+    reason: "",
+    document: null,
+  });
+
+  useEffect(() => {
+    const fetchCandidates = async () => {
+      try {
+        const response = await axios.get(`${API_URL}/allcandidatedata`);
+        setAllCandidates(response.data);
+      } catch (error) {
+        console.error("Error fetching candidates:", error);
+      }
+    };
+
+    fetchCandidates();
+  }, []);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    const data = new FormData();
+
+    for (const key in formData) {
+      data.append(key, formData[key]);
+    }
+
+    try {
+      await axios.post(`${API_URL}/leavepost`, data);
+
+      closeModal();
+
+      setFormData({
+        employeename: "",
+        designation: "",
+        leavedate: "",
+        reason: "",
+        document: null,
+      });
+      setSearch("");
+      setFileName("");
+      setFileSelected(false);
+      if (fileInputRef.current) fileInputRef.current.value = null;
+    } catch (err) {
+      console.error("Submit error:", err);
+      alert("Server error while submitting leave.");
     }
   };
 
@@ -251,7 +363,7 @@ function Leaves() {
                 </span>
               </div>
 
-              <form>
+              <form onSubmit={handleSubmit}>
                 <div className="modal-form">
                   <div className="form-row">
                     <div
@@ -281,6 +393,7 @@ function Leaves() {
                         value={search}
                         onChange={handleSearch}
                         required
+                        name="employeename"
                       />
                     </div>
 
@@ -316,7 +429,14 @@ function Leaves() {
                       </ul>
                     )}
 
-                    <input type="text" placeholder="Designation*" required />
+                    <input
+                      type="text"
+                      placeholder="Designation*"
+                      required
+                      name="designation"
+                      value={formData.designation}
+                      onChange={handleChange}
+                    />
                   </div>
 
                   <div className="form-row">
@@ -325,9 +445,10 @@ function Leaves() {
                         type="text"
                         placeholder="Leave Date*"
                         required
+                        name="leavedate"
                         onFocus={handleDateFocus}
-                        value={leaveDate}
-                        onChange={(e) => setLeaveDate(e.target.value)}
+                        value={formData.leavedate}
+                        onChange={handleChange}
                       />
                       <span className="icon">
                         <svg
@@ -357,6 +478,7 @@ function Leaves() {
                         value={fileName}
                         required
                         onClick={handleClick}
+                        name="document"
                       />
 
                       <span
@@ -410,7 +532,14 @@ function Leaves() {
                   </div>
 
                   <div className="form-row reason-text">
-                    <input type="text" placeholder="Reason*" />
+                    <input
+                      type="text"
+                      placeholder="Reason*"
+                      name="reason"
+                      value={formData.reason}
+                      onChange={handleChange}
+                      required
+                    />
                   </div>
 
                   <button className="save-leave" type="submit">
@@ -435,46 +564,67 @@ function Leaves() {
                 <span>Docs</span>
               </div>
 
-              <div className="table-row">
-                <div className="profile">
-                  <img
-                    src="https://i.pravatar.cc/40?img=1"
-                    alt="profile"
-                    className="profile-img"
-                  />
-                  <div></div>
-                </div>
-
-                <div className="fisher-backend">
-                  <span>Cody Fisher</span>
-                  <span>Senior Backend Develop...</span>
-                </div>
-
-                <span>8/09/24</span>
-                <span>Visiting House</span>
-
-                <span>
-                  <div className="dropdown-wrapper">
-                    <div className="fake-label" style={{ color: getColor() }}>
-                      {status.charAt(0).toUpperCase() + status.slice(1)}
+              {Array.isArray(leaves) && leaves.length > 0 ? (
+                leaves.map((data, key) => (
+                  <div className="table-row" key={key}>
+                    <div className="profile">
+                      <img
+                        src="https://i.pravatar.cc/40?img=1"
+                        alt="profile"
+                        className="profile-img"
+                      />
+                      <div></div>
                     </div>
-                    <select className="status" onChange={handleChange}>
-                      <option value="approved">Approved</option>
-                      <option value="rejected">Rejected</option>
-                    </select>
-                    <span className="arrow">
-                      <FontAwesomeIcon icon={faAngleDown} />
-                    </span>
-                  </div>
-                </span>
 
-                <span>📄</span>
-              </div>
+                    <div className="fisher-backend">
+                      <span>{data.employeename}</span>
+                      <span>{data.designation}</span>
+                    </div>
+
+                    <span>{data.leavedate}</span>
+                    <span>{data.reason}</span>
+
+                    <span>
+                      <div className="dropdown-wrapper">
+                        <div
+                          className="fake-label"
+                          style={{ color: getColor(data.status) }}
+                        >
+                          {data.status
+                            ? data.status.charAt(0).toUpperCase() +
+                              data.status.slice(1)
+                            : "Pending"}
+                        </div>
+
+                        <select
+                          className="status"
+                          value={data.status || "pending"}
+                          onChange={(e) => handleChanges(e, data._id)}
+                        >
+                          <option value="approved">Approved</option>
+                          <option value="rejected">Rejected</option>
+                        </select>
+
+                        <span className="arrow">
+                          <FontAwesomeIcon icon={faAngleDown} />
+                        </span>
+                      </div>
+                    </span>
+
+                    <span>📄</span>
+                  </div>
+                ))
+              ) : (
+                <div className="no-leaves-message">
+                  No leaves available at the current time.
+                </div>
+              )}
             </div>
           </div>
 
           <div className="leave-right">
             <h3 className="section-header">Leave Calendar</h3>
+
             <div className="calendar-container">
               <div className="calendar-header">
                 <span>
@@ -491,53 +641,74 @@ function Leaves() {
                   />
                 </span>
               </div>
+
               <div className="calendar-grid">
-                {["S", "M", "T", "W", "T", "F", "S"].map((day) => (
-                  <div key={day} className="calendar-day-label">
+                {["S", "M", "T", "W", "T", "F", "S"].map((day, index) => (
+                  <div key={index} className="calendar-day-label">
                     {day}
                   </div>
                 ))}
-                {Array(firstDay)
+
+                {Array(getFirstDayOfMonth(currentDate))
                   .fill("")
                   .map((_, i) => (
                     <div key={"empty-" + i}></div>
                   ))}
-                {Array.from({ length: daysInMonth }, (_, i) => (
-                  <div
-                    key={i}
-                    className={`calendar-day ${
-                      isLeaveDate(i + 1) ? "highlighted" : ""
-                    }`}
-                  >
-                    {i + 1}
-                  </div>
-                ))}
+
+                {Array.from({ length: getDaysInMonth(currentDate) }, (_, i) => {
+                  const day = i + 1;
+                  const count = getLeaveCountForDay(day);
+
+                  return (
+                    <div
+                      key={i}
+                      className={`calendar-day ${
+                        count > 0 ? "highlighted" : ""
+                      }`}
+                    >
+                      {day}
+                      {count > 0 && <div className="leave-count">{count}</div>}
+                    </div>
+                  );
+                })}
               </div>
             </div>
 
             <div className="approved-list">
               <h4>Approved Leaves</h4>
-              {ApprovedLeaves.filter(
-                (leave) =>
-                  leave.date.getMonth() === currentDate.getMonth() &&
-                  leave.date.getFullYear() === currentDate.getFullYear()
-              ).map((leave, index) => (
-                <div className="approved-item" key={index}>
-                  <img
-                    src={leave.image}
-                    alt="profile"
-                    className="profile-img"
-                  />
-                  <div>
-                    <div className="name">{leave.name}</div>
-                    <div className="title">{leave.title}</div>
-                  </div>
-                  <div className="leave-date">
-                    {leave.date.getDate()}/{leave.date.getMonth() + 1}/
-                    {String(leave.date.getFullYear()).slice(2)}
-                  </div>
-                </div>
-              ))}
+
+              {leaves
+                .filter((data) => data.status === "approved")
+                .map((data, index) => {
+                  let leaveDateStr = data.leavedate;
+                  let formattedDate = "Invalid Date";
+
+                  if (leaveDateStr && leaveDateStr.includes("/")) {
+                    const [day, month, year] = leaveDateStr.split("/");
+                    const parsedDate = new Date(year, month - 1, day);
+                    formattedDate = `${String(
+                      parsedDate.getMonth() + 1
+                    ).padStart(2, "0")}/${String(parsedDate.getDate()).padStart(
+                      2,
+                      "0"
+                    )}/${parsedDate.getFullYear()}`;
+                  }
+
+                  return (
+                    <div className="approved-item" key={index}>
+                      <img
+                        src="https://i.pravatar.cc/40?img=1"
+                        alt="profile"
+                        className="profile-img"
+                      />
+                      <div>
+                        <div className="title">{data.employeename}</div>
+                        <div className="title">{data.reason}</div>
+                      </div>
+                      <div className="leave-date">{formattedDate}</div>
+                    </div>
+                  );
+                })}
             </div>
           </div>
         </div>
