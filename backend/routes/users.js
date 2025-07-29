@@ -1,5 +1,5 @@
 const express = require("express");
-const { User, Candidate } = require("../models/userModel");
+const { User, Candidate, Leave } = require("../models/userModel");
 const path = require("path");
 const jwt = require("jsonwebtoken");
 const multer = require("multer");
@@ -164,6 +164,101 @@ router.delete("/candidatedelete/:id", async (req, res) => {
   }
 });
 
+router.post("/update-status", async (req, res) => {
+  const { id, status } = req.body;
+
+  if (!id || !status) {
+    return res
+      .status(400)
+      .json({ success: false, message: "Missing id or status" });
+  }
+
+  try {
+    const candidate = await Candidate.findByIdAndUpdate(
+      id,
+      { status },
+      { new: true }
+    );
+    if (!candidate) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Candidate not found" });
+    }
+
+    res.json({ success: true, data: candidate });
+  } catch (err) {
+    console.error("Error updating status:", err);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+router.post("/position-update", async (req, res) => {
+  const { id, position } = req.body;
+
+  if (!id || !position) {
+    return res
+      .status(400)
+      .json({ success: false, message: "Missing id or status" });
+  }
+
+  try {
+    const candidate = await Candidate.findByIdAndUpdate(
+      id,
+      { position },
+      { new: true }
+    );
+    if (!position) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Candidate not found" });
+    }
+
+    res.json({ success: true, data: candidate });
+  } catch (err) {
+    console.error("Error updating status:", err);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+router.post("/department-update", async (req, res) => {
+  const { id, department } = req.body;
+
+  if (!id || !department) {
+    return res
+      .status(400)
+      .json({ success: false, message: "Missing id or department" });
+  }
+
+  try {
+    const candidate = await Candidate.findByIdAndUpdate(
+      id,
+      { department },
+      { new: true }
+    );
+
+    if (!candidate) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Candidate not found" });
+    }
+
+    res.json({ success: true, data: candidate });
+  } catch (err) {
+    console.error("Error updating department:", err);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+router.get("/candidates", async (req, res) => {
+  try {
+    const candidates = await Candidate.find();
+    res.json(candidates);
+  } catch (error) {
+    console.error("Error fetching candidates:", error);
+    res.status(500).json({ message: "Failed to fetch candidates" });
+  }
+});
+
 router.get("/candidatesome/:id", async (req, res) => {
   const id = req.params.id;
 
@@ -212,24 +307,61 @@ router.put("/candidateeditdata/:id", async (req, res) => {
 });
 
 router.post("/leavepost", upload.single("document"), async (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ message: "File missing" });
+  }
+
+  const { employeename, designation, leavedate, reason } = req.body;
+  const document = req.file.filename;
+
+  const newLeave = new Leave({
+    employeename,
+    designation,
+    leavedate,
+    reason,
+    document,
+  });
+
+  await newLeave.save();
+  res.status(200).json({ message: "Leave submitted successfully." });
+});
+
+router.get("/leavesdata", async (req, res) => {
   try {
-    const { employeename, designation, leavedate, reason } = req.body;
-    const document = req.file ? req.file.filename : "";
+    const allLeaves = await Leave.find();
+    res.json(allLeaves);
+  } catch (error) {
+    console.error("Error fetching leaves:", error);
+    res.status(500).json({ message: "Failed to fetch leaves" });
+  }
+});
 
-    const newLeave = new LeaveModel({
-      employeename,
-      designation,
-      leavedate,
-      reason,
-      document,
-    });
+router.post("/leave-approve", async (req, res) => {
+  const { id, status } = req.body;
 
-    await newLeave.save();
+  if (!id || !status) {
+    return res
+      .status(400)
+      .json({ success: false, message: "Missing id or status" });
+  }
 
-    res.status(200).json({ message: "Leave submitted successfully." });
+  try {
+    const updatedLeave = await Leave.findByIdAndUpdate(
+      id,
+      { status },
+      { new: true }
+    );
+
+    if (!updatedLeave) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Leave not found" });
+    }
+
+    res.json({ success: true, data: updatedLeave });
   } catch (err) {
-    console.error("Leave post error:", err);
-    res.status(500).json({ message: "Server error" });
+    console.error("Error updating status:", err);
+    res.status(500).json({ success: false, message: "Internal server error" });
   }
 });
 

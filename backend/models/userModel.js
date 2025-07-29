@@ -31,6 +31,9 @@ const CandidateSchema = new Schema({
   phone: { type: String },
   position: { type: String },
   experience: { type: String },
+  status: { type: String },
+  position: { type: String },
+  department: { type: String },
   resume: { type: String },
   createdAt: { type: Date, default: Date.now },
 });
@@ -40,9 +43,11 @@ const LeaveSchema = new Schema({
   designation: { type: String, required: true },
   leavedate: { type: String },
   reason: { type: String },
+  status: { type: String },
   document: { type: String },
   createdAt: { type: Date, default: Date.now },
 });
+
 const User = model("User", UserSchema);
 const Candidate = model("Candidate", CandidateSchema);
 const Leave = model("Leave", LeaveSchema);
